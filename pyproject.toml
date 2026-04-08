@@ -1,0 +1,17 @@
+[project]
+name = "tinta"
+version = "0.1.0"
+description = "Convert academic papers (PDF) to clean Markdown using GLM-OCR."
+requires-python = ">=3.12"
+dependencies = [
+    "glmocr[selfhosted]",
+    "opencv-python>=4.10.0",
+    "typer>=0.15",
+]
+
+[project.scripts]
+tinta = "tinta.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
