@@ -18,6 +18,7 @@ def run(
     api_key: str | None = None,
     api_url: str | None = None,
     model: str | None = None,
+    api_mode: str | None = None,
 ) -> None:
     """Execute the full PDF-to-Markdown conversion pipeline."""
     pdf = pdf.resolve()
@@ -32,6 +33,7 @@ def run(
     # 1. PDF -> raw Markdown
     raw_md, pages_processed = convert_pdf(
         pdf, mode=mode, api_key=api_key, api_url=api_url, model=model,
+        api_mode=api_mode,
     )
 
     # 2. Extract images from bbox references

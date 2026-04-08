@@ -6,6 +6,12 @@
 # Mode, OCR API URL, and model are set via CLI arguments / env vars.
 
 pipeline:
+  ocr_api:
+    api_mode: "ollama_generate"
+    api_host: "localhost"
+    api_port: 11434
+    api_path: "/api/generate"
+
   enable_layout: true
   max_workers: 32
   page_maxsize: 100

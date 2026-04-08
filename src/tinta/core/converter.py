@@ -3,7 +3,42 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
+
+import yaml
+
+
+_BASE_CONFIG_PATH = Path(__file__).parent.parent / "glmocr_layout_config.yaml"
+
+
+def _build_config(
+    *,
+    api_url: str | None = None,
+    model: str | None = None,
+    api_mode: str | None = None,
+) -> str:
+    """Load the base YAML config, overlay CLI overrides, write to a tempfile.
+
+    Returns the path to the temporary config file.  Caller is responsible
+    for deleting it after use.
+    """
+    data = yaml.safe_load(_BASE_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    ocr_api = data.setdefault("pipeline", {}).setdefault("ocr_api", {})
+
+    if api_url is not None:
+        ocr_api["api_url"] = api_url
+    if model is not None:
+        ocr_api["model"] = model
+    if api_mode is not None:
+        ocr_api["api_mode"] = api_mode
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False, prefix="tinta_",
+    )
+    yaml.dump(data, tmp, default_flow_style=False)
+    tmp.close()
+    return tmp.name
 
 
 def convert_pdf(
@@ -13,35 +48,32 @@ def convert_pdf(
     api_key: str | None = None,
     api_url: str | None = None,
     model: str | None = None,
+    api_mode: str | None = None,
 ) -> tuple[str, int]:
     """Convert a PDF to Markdown using GLM-OCR SDK.
-
-    Passes the PDF directly to GlmOcr.parse(), which internally handles
-    PDF-to-page expansion via PageLoader and runs OCR + ResultFormatter.
 
     Returns:
         Tuple of (markdown_text, pages_processed).
     """
     from glmocr import GlmOcr
 
-    # For selfhosted mode, the SDK reads OCR API settings from env vars
-    # (see _ENV_MAP in glmocr/config.py)
-    if api_url is not None:
-        os.environ["GLMOCR_OCR_API_URL"] = api_url
-    if model is not None:
-        os.environ["GLMOCR_OCR_MODEL"] = model
-
     ocr_kwargs: dict[str, object] = {"mode": mode}
+
     if mode == "selfhosted":
-        # Layout detection config with id2label, label_task_mapping, etc.
-        ocr_kwargs["config_path"] = str(
-            Path(__file__).parent.parent / "glmocr_layout_config.yaml"
+        config_path = _build_config(
+            api_url=api_url, model=model, api_mode=api_mode,
         )
+        ocr_kwargs["config_path"] = config_path
+
     if api_key is not None:
         ocr_kwargs["api_key"] = api_key
 
-    with GlmOcr(**ocr_kwargs) as parser:
-        result = parser.parse(str(pdf_path), save_layout_visualization=False)
+    try:
+        with GlmOcr(**ocr_kwargs) as parser:
+            result = parser.parse(str(pdf_path), save_layout_visualization=False)
+    finally:
+        if mode == "selfhosted":
+            os.unlink(config_path)
 
     # mlx-vlm decodes BPE token 0 as \x00; strip these null bytes.
     raw_md = (result.markdown_result or "").replace("\x00", "")

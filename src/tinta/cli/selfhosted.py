@@ -32,8 +32,12 @@ def selfhosted(
         Optional[str],
         typer.Option("--model", help="Model name for API requests."),
     ] = None,
+    api_mode: Annotated[
+        str,
+        typer.Option("--api-mode", help="OCR API protocol: ollama_generate or openai."),
+    ] = "ollama_generate",
 ) -> None:
     """セルフホストモードで変換."""
     from tinta.core.pipeline import run
 
-    run(pdf, out_dir, md_only, mode="selfhosted", api_url=api_url, model=model)
+    run(pdf, out_dir, md_only, mode="selfhosted", api_url=api_url, model=model, api_mode=api_mode)
