@@ -1,4 +1,4 @@
-"""Main conversion pipeline (orchestrator)."""
+"""Single-PDF conversion orchestrator."""
 
 from __future__ import annotations
 
@@ -8,19 +8,17 @@ from pathlib import Path
 from tinta.core.converter import convert_pdf
 from tinta.core.output import ExtractionMeta, _sha256, write_outputs
 from tinta.core.postprocess import build_focused, check_quality
+from tinta.settings import Settings
 
 
-def run(
+def run_one(
     pdf: Path,
     out_dir: Path,
     md_only: bool,
-    mode: str,
-    api_key: str | None = None,
-    api_url: str | None = None,
-    model: str | None = None,
-    api_mode: str | None = None,
-) -> None:
-    """Execute the full PDF-to-Markdown conversion pipeline."""
+    *,
+    settings: Settings,
+) -> ExtractionMeta:
+    """Execute the conversion pipeline for a single PDF."""
     pdf = pdf.resolve()
     if not pdf.is_file():
         raise FileNotFoundError(f"{pdf} is not a file.")
@@ -28,15 +26,10 @@ def run(
     stem = pdf.stem
     dest = out_dir / stem
 
-    print(f"Converting {pdf.name} ...")
+    print(f"Converting {pdf.name} ...", flush=True)
 
-    # 1. PDF -> raw Markdown
-    raw_md, pages_processed = convert_pdf(
-        pdf, mode=mode, api_key=api_key, api_url=api_url, model=model,
-        api_mode=api_mode,
-    )
+    raw_md, pages_processed, degraded_pages = convert_pdf(pdf, settings=settings)
 
-    # 2. Extract images from bbox references
     from glmocr.utils.markdown_utils import crop_and_replace_images
 
     imgs_dir = dest / "imgs"
@@ -44,13 +37,9 @@ def run(
         raw_md, [str(pdf)], imgs_dir, image_prefix="figure"
     )
 
-    # 3. Build focused version
     focused_md = build_focused(raw_md)
-
-    # 4. Quality check
     suspicious, reasons = check_quality(raw_md, focused_md)
 
-    # 5. Build meta
     meta = ExtractionMeta(
         source_pdf=str(pdf),
         raw_md_sha256=_sha256(raw_md),
@@ -60,9 +49,11 @@ def run(
         suspicious=suspicious,
         suspicion_reasons=reasons,
         pages_processed=pages_processed,
+        degraded_pages=degraded_pages,
+        backend=settings.backend or "",
+        model=settings.model or "",
     )
 
-    # 6. Write outputs
     write_outputs(
         out_dir=dest,
         raw_md=raw_md,
@@ -71,6 +62,13 @@ def run(
         md_only=md_only,
     )
 
-    print(f"Done -> {dest}/")
+    print(f"Done -> {dest}/", flush=True)
+    if degraded_pages:
+        print(
+            f"Warning: {degraded_pages}/{pages_processed} pages had empty OCR output.",
+            file=sys.stderr,
+        )
     if suspicious:
         print(f"Warning: Suspicious: {'; '.join(reasons)}", file=sys.stderr)
+
+    return meta

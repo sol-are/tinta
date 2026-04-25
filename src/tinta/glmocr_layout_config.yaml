@@ -3,17 +3,16 @@
 # https://github.com/zai-org/GLM-OCR/blob/main/glmocr/config.yaml
 #
 # Only layout-related settings are included here.
-# Mode, OCR API URL, and model are set via CLI arguments / env vars.
+# OCR API settings (url, key, model) are set via CLI arguments / env vars.
+# To override api_mode or other ocr_api defaults, add a pipeline.ocr_api
+# section here (e.g. api_mode: "ollama_generate" for Ollama).
 
 pipeline:
   ocr_api:
     api_mode: "ollama_generate"
-    api_host: "localhost"
-    api_port: 11434
-    api_path: "/api/generate"
 
   enable_layout: true
-  max_workers: 32
+  max_workers: 4
   page_maxsize: 100
   region_maxsize: 800
 

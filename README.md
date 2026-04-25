@@ -1,14 +1,15 @@
 # tinta
 
-学術論文の PDF を [GLM-OCR](https://github.com/GLM-Opensource/glmocr) で読み取り、整形された Markdown に変換する CLI ツールです。
+学術論文の PDF を [GLM-OCR](https://github.com/zai-org/GLM-OCR) で読み取り、整形された Markdown に変換する CLI ツールです。
 
 ## 特徴
 
-- **2 つの動作モード** — セルフホスト (`selfhosted`) と MaaS API (`maas`) を切り替え可能
-- **2 段階の出力** — OCR そのままの `raw.md` と、参考文献・ヘッダ/フッタを除去した `focused.md` を同時に生成
-- **画像の自動抽出** — PDF 内の図表を bbox 情報から切り出し、`imgs/` ディレクトリに保存
-- **品質チェック** — focused テキストが極端に短い・raw に対する比率が低い場合に警告を出力
-- **メタデータ記録** — SHA-256 ハッシュ、バイト数、ページ数などを `meta.json` に保存
+- **バックエンドプリセット** — Ollama / vLLM / SGLang / MLX / llama.cpp / LM Studio / GLM-OCR 自前サーバー / MaaS をワンフラグで切替
+- **バッチ処理 + resume** — ディレクトリやワイルドカードを直接渡せて、`--skip-existing` で完了済みをスキップ
+- **Watchdog + Ollama キュー drain** — `--max-pdf-time` で 1 PDF あたりの上限。タイムアウト時は自動で Ollama のキューを drain
+- **2 段階の出力** — `raw.md` と本文のみの `focused.md` を同時生成
+- **画像の自動抽出** — bbox 情報から `imgs/` に切り出し
+- **品質チェック + メタデータ** — SHA-256, ページ数, degraded ページ数, 使用 backend/model を `meta.json` に記録
 
 ## 必要要件
 
@@ -23,60 +24,78 @@ uv tool install git+https://github.com/sol-are/tinta
 
 ## 使い方
 
-### MaaS (API) モード
-
-GLM-OCR のクラウド API を利用するモードです。
+### 単発
 
 ```bash
-tinta maas paper.pdf
+tinta paper.pdf --backend ollama
 ```
+
+### バッチ (ディレクトリ全体を再帰)
+
+```bash
+tinta papers/ --backend ollama --skip-existing --max-pdf-time 1800
+```
+
+### MaaS (Zhipu API)
+
+```bash
+tinta paper.pdf --backend maas -k $ZHIPU_API_KEY
+```
+
+### 設定の確認 (実行せずに dump)
+
+```bash
+tinta paper.pdf --backend ollama --print-config
+```
+
+## バックエンドプリセット
+
+| `--backend` | エンドポイント | model 既定 | max_workers |
+|---|---|---|---|
+| `ollama` | `http://localhost:11434/api/generate` | `glm-ocr:latest` | 4 |
+| `glm-ocr` | `http://localhost:8080/v1/chat/completions` | (config) | 32 |
+| `vllm` | `http://localhost:8000/v1/chat/completions` | (config) | 32 |
+| `sglang` | `http://localhost:30000/v1/chat/completions` | (config) | 32 |
+| `mlx` | `http://localhost:8080/v1/chat/completions` | (config) | 2 |
+| `llama-cpp` | `http://localhost:8080/v1/chat/completions` | (config) | 4 |
+| `lmstudio` | `http://localhost:1234/v1/chat/completions` | (config) | 4 |
+| `maas` | `https://open.bigmodel.cn/...` | `glm-ocr` | 8 |
+
+個別フラグ (`--api-url`, `--model`, `--max-workers` など) はプリセットを上書きします。
+
+## 主要オプション
 
 | オプション | 説明 |
 |---|---|
-| `--out-dir`, `-o` | 出力ディレクトリ (デフォルト: `./out`) |
-| `--md-only` | Markdown のみ出力 (`meta.json` をスキップ) |
-| `--api-key` | API キー (環境変数 `GLMOCR_API_KEY` でも設定可) |
+| `--out-dir`, `-o` | 出力先 (既定 `./out`) |
+| `--backend` | バックエンドプリセット |
+| `--skip-existing` | `<out>/<stem>/meta.json` (または `--md-only` 時は `focused.md`) があればスキップ |
+| `--max-pdf-time SECS` | 1 PDF あたりの watchdog。spawn サブプロセスで実行 |
+| `--max-workers N` | OCR 並列数。`pipeline.max_workers` を上書き |
+| `--request-timeout SECS` | OCR API リクエストタイムアウト |
+| `--connect-timeout SECS` | OCR API 接続タイムアウト |
+| `--retry-max-attempts N` | 失敗時のリトライ回数 |
+| `--api-url`, `-u` | カスタム URL (プリセットを上書き) |
+| `--api-key`, `-k` | API キー (MaaS モード切替) |
+| `--model`, `-m` | モデル名 |
+| `--md-only` | `meta.json` を出力しない |
+| `--no-health-check` | 起動時の到達確認をスキップ |
+| `--print-config` | 解決後の設定を表示して終了 |
 
-### セルフホストモード
+## 環境変数
 
-ローカルまたは自前サーバで GLM-OCR を動かすモードです。
-
-```bash
-tinta selfhosted paper.pdf --api-url http://localhost:8000
-```
-
-| オプション | 説明 |
+| 変数 | 同等フラグ |
 |---|---|
-| `--out-dir`, `-o` | 出力ディレクトリ (デフォルト: `./out`) |
-| `--md-only` | Markdown のみ出力 (`meta.json` をスキップ) |
-| `--api-url` | セルフホストサーバの API URL |
-| `--model` | 使用するモデル名 |
+| `TINTA_BACKEND` | `--backend` |
+| `TINTA_API_URL` | `--api-url` |
+| `TINTA_MODEL` | `--model` |
+| `TINTA_MAX_WORKERS` | `--max-workers` |
+| `TINTA_REQUEST_TIMEOUT` | `--request-timeout` |
+| `TINTA_CONNECT_TIMEOUT` | `--connect-timeout` |
+| `TINTA_RETRY_MAX_ATTEMPTS` | `--retry-max-attempts` |
+| `GLMOCR_API_KEY` / `ZHIPU_API_KEY` | `--api-key` |
 
-### Python API
-
-CLI を介さず、Python から直接呼び出すこともできます。
-
-```python
-from tinta.core import run
-
-run(
-    pdf=Path("paper.pdf"),
-    out_dir=Path("./out"),
-    md_only=False,
-    mode="maas",
-    api_key="sk-...",
-)
-```
-
-個別のステップを使う場合:
-
-```python
-from tinta.core import convert_pdf, build_focused, check_quality
-
-raw_md, pages = convert_pdf(Path("paper.pdf"), mode="maas")
-focused_md = build_focused(raw_md)
-suspicious, reasons = check_quality(raw_md, focused_md)
-```
+優先順位: **CLI フラグ > 環境変数 > プリセット > SDK 既定**
 
 ## 出力構成
 
@@ -87,7 +106,6 @@ out/<論文名>/
 ├── meta.json       # メタデータ (--md-only 時は省略)
 └── imgs/           # 抽出された図表画像
     ├── figure_0.png
-    ├── figure_1.png
     └── ...
 ```
 
@@ -96,10 +114,39 @@ out/<論文名>/
 | フィールド | 説明 |
 |---|---|
 | `source_pdf` | 入力 PDF の絶対パス |
-| `raw_md_sha256` | `raw.md` の SHA-256 ハッシュ |
-| `focused_md_sha256` | `focused.md` の SHA-256 ハッシュ |
-| `raw_bytes` | `raw.md` のバイト数 |
-| `focused_bytes` | `focused.md` のバイト数 |
-| `suspicious` | 品質チェックで警告があるか |
-| `suspicion_reasons` | 警告の理由リスト |
-| `pages_processed` | 処理されたページ数 |
+| `raw_md_sha256` / `focused_md_sha256` | SHA-256 ハッシュ |
+| `raw_bytes` / `focused_bytes` | バイト数 |
+| `pages_processed` | 処理ページ数 |
+| `degraded_pages` | OCR が空文字を返したページ数 (タイムアウト等) |
+| `backend` | 使用したプリセット名 |
+| `model` | 使用したモデル名 |
+| `suspicious` / `suspicion_reasons` | 品質警告 |
+
+## Python API
+
+```python
+from pathlib import Path
+from tinta.core import run_one
+from tinta.settings import Settings
+
+settings = Settings.resolve(backend="ollama")
+run_one(Path("paper.pdf"), Path("./out"), md_only=False, settings=settings)
+```
+
+バッチで使う場合:
+
+```python
+from tinta.batch import expand_inputs, run_batch
+
+pdfs = expand_inputs([Path("./papers")])
+result = run_batch(pdfs, Path("./out"), md_only=False,
+                   settings=settings, skip_existing=True, max_pdf_time=1800)
+print(result)
+```
+
+## トラブルシューティング
+
+- **`[preflight] Cannot reach ...`** — バックエンドが起動していません。Ollama なら `ollama serve`、vLLM なら `vllm serve <model>` を実行
+- **`[preflight] Model 'X' not in advertised list`** — モデル名が違う or alias を使ったとき。**警告のみで処理は継続**します。`vllm --served-model-name` 等を使っている場合は無視可
+- **Ollama batch でタイムアウトが連発する** — `--max-pdf-time 1800` (またはより短い値) を必ず指定。`max_workers` は preset の `4` 既定を維持推奨
+- **複数 PDF を渡したのに hint が出る** — `--max-pdf-time` を付けて再実行

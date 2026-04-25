@@ -18,6 +18,9 @@ class ExtractionMeta:
     suspicious: bool = False
     suspicion_reasons: list[str] = field(default_factory=list)
     pages_processed: int = 0
+    degraded_pages: int = 0
+    backend: str = ""
+    model: str = ""
 
 
 def _sha256(text: str) -> str:
@@ -36,6 +39,8 @@ def write_outputs(
     (out_dir / "raw.md").write_text(raw_md, encoding="utf-8")
     (out_dir / "focused.md").write_text(focused_md, encoding="utf-8")
     if not md_only:
+        # meta.json is written last so its presence proves a complete run
+        # — used by --skip-existing as the completion marker.
         (out_dir / "meta.json").write_text(
             json.dumps(asdict(meta), indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
