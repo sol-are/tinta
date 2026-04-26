@@ -1245,6 +1245,7 @@ dependencies = [
     { name = "glmocr", extra = ["selfhosted"] },
     { name = "opencv-python" },
     { name = "pyyaml" },
+    { name = "requests" },
     { name = "typer" },
 ]
 
@@ -1253,6 +1254,7 @@ requires-dist = [
     { name = "glmocr", extras = ["selfhosted"] },
     { name = "opencv-python", specifier = ">=4.10.0" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "requests", specifier = ">=2.31" },
     { name = "typer", specifier = ">=0.15" },
 ]
 
