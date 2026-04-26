@@ -14,7 +14,7 @@ from tinta.settings import Settings
 def run_one(
     pdf: Path,
     out_dir: Path,
-    md_only: bool,
+    no_artifacts: bool,
     *,
     settings: Settings,
 ) -> ExtractionMeta:
@@ -59,7 +59,7 @@ def run_one(
         raw_md=raw_md,
         focused_md=focused_md,
         meta=meta,
-        md_only=md_only,
+        no_artifacts=no_artifacts,
     )
 
     print(f"Done -> {dest}/", flush=True)

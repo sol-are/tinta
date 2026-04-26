@@ -33,14 +33,13 @@ def write_outputs(
     raw_md: str,
     focused_md: str,
     meta: ExtractionMeta,
-    md_only: bool,
+    no_artifacts: bool,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "raw.md").write_text(raw_md, encoding="utf-8")
-    (out_dir / "focused.md").write_text(focused_md, encoding="utf-8")
-    if not md_only:
-        # meta.json is written last so its presence proves a complete run
-        # — used by --skip-existing as the completion marker.
+    if not no_artifacts:
+        (out_dir / "raw.md").write_text(raw_md, encoding="utf-8")
+    (out_dir / f"{out_dir.name}.md").write_text(focused_md, encoding="utf-8")
+    if not no_artifacts:
         (out_dir / "meta.json").write_text(
             json.dumps(asdict(meta), indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",

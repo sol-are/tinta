@@ -7,7 +7,7 @@
 - **バックエンドプリセット** — Ollama / vLLM / SGLang / MLX / llama.cpp / LM Studio / GLM-OCR 自前サーバー / MaaS をワンフラグで切替
 - **バッチ処理 + resume** — ディレクトリやワイルドカードを直接渡せて、`--skip-existing` で完了済みをスキップ
 - **Watchdog + Ollama キュー drain** — `--max-pdf-time` で 1 PDF あたりの上限。タイムアウト時は自動で Ollama のキューを drain
-- **2 段階の出力** — `raw.md` と本文のみの `focused.md` を同時生成
+- **2 段階の出力** — 本文のみの `<stem>.md`（主成果物）と OCR 生テキスト `raw.md`（監査サイドカー）を同時生成
 - **画像の自動抽出** — bbox 情報から `imgs/` に切り出し
 - **品質チェック + メタデータ** — SHA-256, ページ数, degraded ページ数, 使用 backend/model を `meta.json` に記録
 
@@ -69,7 +69,7 @@ tinta paper.pdf --backend ollama --print-config
 |---|---|
 | `--out-dir`, `-o` | 出力先 (既定 `./out`) |
 | `--backend` | バックエンドプリセット |
-| `--skip-existing` | `<out>/<stem>/meta.json` (または `--md-only` 時は `focused.md`) があればスキップ |
+| `--skip-existing` | `<out>/<stem>/meta.json` (または `--no-artifacts` 時は `<stem>.md`) があればスキップ |
 | `--max-pdf-time SECS` | 1 PDF あたりの watchdog。spawn サブプロセスで実行 |
 | `--max-workers N` | OCR 並列数。`pipeline.max_workers` を上書き |
 | `--request-timeout SECS` | OCR API リクエストタイムアウト |
@@ -78,7 +78,7 @@ tinta paper.pdf --backend ollama --print-config
 | `--api-url`, `-u` | カスタム URL (プリセットを上書き) |
 | `--api-key`, `-k` | API キー (MaaS モード切替) |
 | `--model`, `-m` | モデル名 |
-| `--md-only` | `meta.json` を出力しない |
+| `--no-artifacts` | 監査サイドカー (`raw.md`, `meta.json`) を出力しない (`<stem>.md` + `imgs/` のみ) |
 | `--no-health-check` | 起動時の到達確認をスキップ |
 | `--print-config` | 解決後の設定を表示して終了 |
 
@@ -101,13 +101,15 @@ tinta paper.pdf --backend ollama --print-config
 
 ```
 out/<論文名>/
-├── raw.md          # OCR 生テキスト
-├── focused.md      # 本文のみ (参考文献等を除去)
-├── meta.json       # メタデータ (--md-only 時は省略)
-└── imgs/           # 抽出された図表画像
-    ├── figure_0.png
-    └── ...
+├── <論文名>.md     # 本文 (focused) — 主成果物
+├── imgs/           # 抽出された図表画像
+│   ├── figure_0.png
+│   └── ...
+├── raw.md          # OCR 生テキスト (--no-artifacts 時は省略)
+└── meta.json       # メタデータ (--no-artifacts 時は省略)
 ```
+
+`raw.md` / `meta.json` は監査用サイドカー — 削除しても `<論文名>.md` + `imgs/` は完全に機能します（画像参照は `imgs/figure_x.png` の同階層相対パス）．
 
 ### meta.json の内容
 
@@ -130,7 +132,7 @@ from tinta.core import run_one
 from tinta.settings import Settings
 
 settings = Settings.resolve(backend="ollama")
-run_one(Path("paper.pdf"), Path("./out"), md_only=False, settings=settings)
+run_one(Path("paper.pdf"), Path("./out"), no_artifacts=False, settings=settings)
 ```
 
 バッチで使う場合:
@@ -139,7 +141,7 @@ run_one(Path("paper.pdf"), Path("./out"), md_only=False, settings=settings)
 from tinta.batch import expand_inputs, run_batch
 
 pdfs = expand_inputs([Path("./papers")])
-result = run_batch(pdfs, Path("./out"), md_only=False,
+result = run_batch(pdfs, Path("./out"), no_artifacts=False,
                    settings=settings, skip_existing=True, max_pdf_time=1800)
 print(result)
 ```

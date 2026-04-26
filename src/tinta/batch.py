@@ -40,17 +40,18 @@ def expand_inputs(inputs: Iterable[Path]) -> list[Path]:
     return pdfs
 
 
-def _completion_marker(out_dir: Path, stem: str, md_only: bool) -> Path:
-    """write_outputs writes meta.json last; in --md-only mode focused.md is the
-    last file. Either is a strict-superset predicate vs. focused.md alone."""
+def _completion_marker(out_dir: Path, stem: str, no_artifacts: bool) -> Path:
+    """write_outputs writes meta.json last in the default mode; in --no-artifacts
+    mode <stem>.md is the only file written. Either is a strict-superset
+    predicate vs. <stem>.md alone."""
     sub = out_dir / stem
-    return sub / ("focused.md" if md_only else "meta.json")
+    return sub / (f"{stem}.md" if no_artifacts else "meta.json")
 
 
 def run_batch(
     pdfs: list[Path],
     out_dir: Path,
-    md_only: bool,
+    no_artifacts: bool,
     *,
     settings: Settings,
     skip_existing: bool,
@@ -65,18 +66,18 @@ def run_batch(
     for i, pdf in enumerate(pdfs, start=1):
         prefix = f"{i}/{total}"
 
-        if skip_existing and _completion_marker(out_dir, pdf.stem, md_only).exists():
+        if skip_existing and _completion_marker(out_dir, pdf.stem, no_artifacts).exists():
             skip += 1
             log(prefix, f"SKIP {pdf}")
             continue
 
         try:
             if max_pdf_time:
-                _run_with_watchdog(pdf, out_dir, md_only, settings, max_pdf_time)
+                _run_with_watchdog(pdf, out_dir, no_artifacts, settings, max_pdf_time)
             else:
                 from tinta.core.pipeline import run_one
 
-                run_one(pdf, out_dir, md_only, settings=settings)
+                run_one(pdf, out_dir, no_artifacts, settings=settings)
             ok += 1
             log(prefix, f"OK   {pdf}")
         except _PdfTimeout as e:
@@ -96,12 +97,12 @@ class _PdfTimeout(RuntimeError):
 
 
 def _run_with_watchdog(
-    pdf: Path, out_dir: Path, md_only: bool, settings: Settings, timeout: int
+    pdf: Path, out_dir: Path, no_artifacts: bool, settings: Settings, timeout: int
 ) -> None:
     ctx = mp.get_context("spawn")
     p = ctx.Process(
         target=_pdf_worker,
-        args=(str(pdf), str(out_dir), md_only, settings),
+        args=(str(pdf), str(out_dir), no_artifacts, settings),
     )
     p.start()
     p.join(timeout)
@@ -116,13 +117,13 @@ def _run_with_watchdog(
         raise RuntimeError(f"worker exited with code {p.exitcode}")
 
 
-def _pdf_worker(pdf_str: str, out_str: str, md_only: bool, settings: Settings) -> None:
+def _pdf_worker(pdf_str: str, out_str: str, no_artifacts: bool, settings: Settings) -> None:
     """Spawned subprocess body. Errors print to stderr and re-raise so the
     parent observes a non-zero exit code."""
     try:
         from tinta.core.pipeline import run_one
 
-        run_one(Path(pdf_str), Path(out_str), md_only, settings=settings)
+        run_one(Path(pdf_str), Path(out_str), no_artifacts, settings=settings)
     except BaseException as e:
         print(
             f"[worker] {type(e).__name__}: {e}\n{traceback.format_exc()}",

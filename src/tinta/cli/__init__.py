@@ -49,8 +49,12 @@ def main(
             help=f"Backend preset: {', '.join(sorted(BACKENDS))}.",
         ),
     ] = None,
-    md_only: Annotated[
-        bool, typer.Option("--md-only", help="Output Markdown only (skip meta.json).")
+    no_artifacts: Annotated[
+        bool,
+        typer.Option(
+            "--no-artifacts",
+            help="Skip audit sidecars (raw.md, meta.json). Emit only <stem>.md + imgs/.",
+        ),
     ] = False,
     skip_existing: Annotated[
         bool,
@@ -153,7 +157,7 @@ def main(
     result = run_batch(
         pdfs=pdfs,
         out_dir=out_dir,
-        md_only=md_only,
+        no_artifacts=no_artifacts,
         settings=settings,
         skip_existing=skip_existing,
         max_pdf_time=max_pdf_time,
