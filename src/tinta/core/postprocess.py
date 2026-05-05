@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import re
 
-# Section headers that mark the end of main body content
-_END_SECTION_RE = re.compile(
-    r"^#{1,3}\s+"
-    r"(References|Bibliography|Works\s+Cited|Acknowledgments?|Acknowledgements?"
-    r"|Appendix|Supplementary|Funding)",
+# Optional label prefix on a section heading: "A ", "A.", "A1.", "1 ", "1." etc.
+_LABEL_PREFIX = r"(?:[A-Z]\d*\.?\s+|\d+\.?\s+)?"
+
+# Headings that start an end-matter region to drop from the focused output.
+_DROP_SECTION_RE = re.compile(
+    rf"^#{{1,3}}\s+{_LABEL_PREFIX}"
+    r"(References|Bibliography|Works\s+Cited|Acknowledgments?|Acknowledgements?|Funding)\b",
+    re.IGNORECASE,
+)
+
+# Headings that re-enter body content (papers commonly place these after refs).
+_RESUME_SECTION_RE = re.compile(
+    rf"^#{{1,3}}\s+{_LABEL_PREFIX}"
+    r"(Appendix|Supplementary|Supplemental)\b",
     re.IGNORECASE,
 )
 
@@ -23,18 +32,24 @@ _MIN_RATIO = 0.10
 
 
 def build_focused(raw_md: str) -> str:
-    """Strip references/acknowledgments tail and noisy header/footer lines."""
-    lines = raw_md.splitlines()
+    """Strip references/acknowledgments tail and noisy header/footer lines.
 
-    # Find where end-matter begins
-    cut_index = len(lines)
-    for i, line in enumerate(lines):
-        if _END_SECTION_RE.match(line):
-            cut_index = i
-            break
-
+    A heading matched by ``_DROP_SECTION_RE`` (refs/bib/acks/funding) starts a
+    skip region; the next heading matched by ``_RESUME_SECTION_RE``
+    (appendix/supplementary) ends it. This keeps appendix and supplementary
+    content even when authors place those sections after references.
+    """
     body_lines: list[str] = []
-    for line in lines[:cut_index]:
+    skipping = False
+    for line in raw_md.splitlines():
+        if skipping:
+            if _RESUME_SECTION_RE.match(line):
+                skipping = False
+            else:
+                continue
+        elif _DROP_SECTION_RE.match(line):
+            skipping = True
+            continue
         if _PAGE_NUM_RE.match(line):
             continue
         if _HEADER_FOOTER_RE.match(line):
