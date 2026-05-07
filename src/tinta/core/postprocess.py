@@ -21,6 +21,12 @@ _RESUME_SECTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Bare appendix-style labels common in ML papers (e.g. "## A METHOD",
+# "## C.1 ABLATION", "## H.2.1 NORMALIZATION") — single uppercase letter,
+# optional dot-separated digit groups, then a section title. Case-sensitive
+# so body prose like "## a few notes" does not trigger.
+_RESUME_BARE_LABEL_RE = re.compile(r"^#{1,3}\s+[A-Z](?:\.\d+)*\.?\s+\S")
+
 # Lines that look like page numbers or running headers/footers
 _PAGE_NUM_RE = re.compile(r"^\s*\d+\s*$")
 _HEADER_FOOTER_RE = re.compile(
@@ -43,7 +49,7 @@ def build_focused(raw_md: str) -> str:
     skipping = False
     for line in raw_md.splitlines():
         if skipping:
-            if _RESUME_SECTION_RE.match(line):
+            if _RESUME_SECTION_RE.match(line) or _RESUME_BARE_LABEL_RE.match(line):
                 skipping = False
             else:
                 continue
