@@ -9,8 +9,11 @@ from typing import Annotated, Optional
 
 import typer
 
-from tinta.backends import BACKENDS
+from tinta.backends import BACKENDS, BackendPreset
 from tinta.settings import Settings
+
+
+_PRESET_DEFAULTS = BackendPreset.__dataclass_fields__
 
 
 def _run_preflight(settings: Settings) -> None:
@@ -76,11 +79,17 @@ def main(
     ] = None,
     request_timeout: Annotated[
         Optional[int],
-        typer.Option("--request-timeout", help="Override OCR API request_timeout (seconds)."),
+        typer.Option(
+            "--request-timeout",
+            help=f"Override OCR API request_timeout (seconds, default {_PRESET_DEFAULTS['request_timeout'].default}).",
+        ),
     ] = None,
     connect_timeout: Annotated[
         Optional[int],
-        typer.Option("--connect-timeout", help="Override OCR API connect_timeout (seconds)."),
+        typer.Option(
+            "--connect-timeout",
+            help=f"Override OCR API connect_timeout (seconds, default {_PRESET_DEFAULTS['connect_timeout'].default}).",
+        ),
     ] = None,
     retry_max_attempts: Annotated[
         Optional[int],

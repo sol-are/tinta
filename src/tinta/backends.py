@@ -35,7 +35,8 @@ class BackendPreset:
     api_path: str
     model: Optional[str]
     max_workers: int
-    request_timeout: int = 300
+    request_timeout: int = 1200
+    connect_timeout: int = 600
     health_url: str = ""
     requires_api_key: bool = False
     drainer: Optional[Callable[[str, Optional[str]], "tuple[bool, str]"]] = None
@@ -79,7 +80,14 @@ BACKENDS: dict[str, BackendPreset] = {
         api_mode="ollama_generate",
         api_path="/api/generate",
         model="glm-ocr:latest",
-        max_workers=4,
+        # max_workers=1 forces tinta to send requests serially. This is the only
+        # client-side defense against ollama's continuous-batching cross-talk
+        # (NUM_PARALLEL >= 2) which produces non-deterministic OCR output. Ollama
+        # exposes no API to read or set NUM_PARALLEL per-request, so we cannot
+        # detect it cross-platform; serializing here makes the daemon-side value
+        # irrelevant. The throughput cost is small (~8%) since per-region
+        # inference is GPU-bound and ollama processes one slot at a time anyway.
+        max_workers=1,
         health_url="http://localhost:11434/api/tags",
         drainer=_drain_ollama,
     ),
@@ -144,6 +152,7 @@ BACKENDS: dict[str, BackendPreset] = {
         api_path="/api/paas/v4/layout_parsing",
         model="glm-ocr",
         max_workers=8,
+        connect_timeout=1500,
         health_url="",
         requires_api_key=True,
     ),

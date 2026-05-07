@@ -102,7 +102,10 @@ class Settings:
                 parser=int,
             ),
             connect_timeout=pick(
-                connect_timeout, _ENV_KEYS["connect_timeout"], None, parser=int
+                connect_timeout,
+                _ENV_KEYS["connect_timeout"],
+                preset.connect_timeout if preset else None,
+                parser=int,
             ),
             retry_max_attempts=pick(
                 retry_max_attempts, _ENV_KEYS["retry_max_attempts"], None, parser=int
